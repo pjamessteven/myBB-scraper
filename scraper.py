@@ -248,33 +248,7 @@ class ForumScraper:
             print(f"Failed to retrieve {url}")
             return False
         
-        # Find all posts on the page by their id pattern (more reliable than class)
-        posts = soup.find_all('div', id=re.compile(r'post_\d+'))
-        print(f"Found {len(posts)} posts on page {page_num}")
-        
-        # Track if we found at least one valid post
-        found_valid_posts = False
-        
-        for post in posts:
-            post_id, post_date, post_text, username, replies_to = self.parse_post(post, thread_id)
-            if post_id and username:
-                found_valid_posts = True
-                # Parse user info (posts, threads, joined date)
-                user_info = self.parse_user_info(post)
-                username_found, num_posts, num_threads, joined_date = user_info
-                # Ensure username matches
-                if username_found and username_found != username:
-                    # Use the one from parse_user_info
-                    username = username_found
-                # Insert user with extracted info
-                self.db.insert_user(username, num_posts, num_threads, joined_date)
-                # Insert post
-                self.db.insert_post(post_id, post_date, post_text, username, thread_id, replies_to)
-            else:
-                # Debug: print why post wasn't parsed
-                print(f"Warning: Failed to parse post from element {post.get('id')}")
-        
-        # On first page, extract thread info and number of pages, but only if we found valid posts
+        # On first page, extract thread info and insert it before processing posts
         if page_num == 1:
             # Extract thread title
             thread_title = None
@@ -321,12 +295,40 @@ class ForumScraper:
             # Get total pages
             total_pages = self.extract_number_of_pages(soup, thread_id)
             
-            # Insert thread info only if we found valid posts
-            if found_valid_posts and thread_title:
+            # Insert thread info if we have a title
+            if thread_title:
                 self.db.insert_thread(thread_id, thread_title, board_name, thread_date)
                 print(f"Thread {thread_id}: {thread_title} (Board: {board_name}) - {total_pages} pages")
-            elif not found_valid_posts:
-                print(f"Thread {thread_id}: No valid posts found, not saving thread to database")
+            else:
+                print(f"Thread {thread_id}: Could not extract thread title, not saving thread to database")
+                # Without a thread title, we can't insert the thread, so we shouldn't process posts
+                return False
+        
+        # Find all posts on the page by their id pattern (more reliable than class)
+        posts = soup.find_all('div', id=re.compile(r'post_\d+'))
+        print(f"Found {len(posts)} posts on page {page_num}")
+        
+        # Track if we found at least one valid post
+        found_valid_posts = False
+        
+        for post in posts:
+            post_id, post_date, post_text, username, replies_to = self.parse_post(post, thread_id)
+            if post_id and username:
+                found_valid_posts = True
+                # Parse user info (posts, threads, joined date)
+                user_info = self.parse_user_info(post)
+                username_found, num_posts, num_threads, joined_date = user_info
+                # Ensure username matches
+                if username_found and username_found != username:
+                    # Use the one from parse_user_info
+                    username = username_found
+                # Insert user with extracted info
+                self.db.insert_user(username, num_posts, num_threads, joined_date)
+                # Insert post
+                self.db.insert_post(post_id, post_date, post_text, username, thread_id, replies_to)
+            else:
+                # Debug: print why post wasn't parsed
+                print(f"Warning: Failed to parse post from element {post.get('id')}")
         
         time.sleep(config.DELAY_BETWEEN_REQUESTS)
         return found_valid_posts
