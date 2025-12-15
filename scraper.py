@@ -101,6 +101,14 @@ class ForumScraper:
                     try:
                         joined_date = datetime.strptime(joined_str_clean, '%b %Y')
                     except:
+                        # Debug output
+                        print(f"Debug: Could not parse joined date '{joined_str}' for user {username}")
+                        pass
+                    except:
+                        # Debug output
+                        print(f"Debug: Could not parse joined date '{joined_str}' for user {username}")
+                        pass
+                    except:
                         print(f"Debug: Could not parse joined date '{joined_str}' for user {username}")
                         pass
         
@@ -115,6 +123,8 @@ class ForumScraper:
             match = re.search(r'(\d+)', post_id_elem)
             if match:
                 post_id = int(match.group(1))
+        if not post_id:
+            print(f"Debug: Could not extract post_id from {post_id_elem}")
         
         # Extract post date
         post_date = None
@@ -133,12 +143,16 @@ class ForumScraper:
                     break
                 except:
                     continue
+        if not post_date:
+            print(f"Debug: Could not parse date from element {date_elem}")
         
         # Extract post text
         post_text = None
         text_elem = post_element.find('div', class_='post_body')
         if text_elem:
             post_text = text_elem.get_text(strip=True)
+        if not post_text:
+            print(f"Debug: Could not find post_body in post {post_id}")
         
         # Extract username (same as in parse_user_info)
         username = None
@@ -147,6 +161,8 @@ class ForumScraper:
             username_link = username_elem.find('a')
             if username_link:
                 username = username_link.get_text(strip=True)
+        if not username:
+            print(f"Debug: Could not find username in post {post_id}")
         
         return post_id, post_date, post_text, username
     
