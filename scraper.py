@@ -13,6 +13,24 @@ class ForumScraper:
         self.session = requests.Session()
         self.session.headers.update(config.HEADERS)
         
+        # Add cookies from config
+        if hasattr(config, 'COOKIES') and config.COOKIES:
+            # Build Cookie header string
+            cookie_parts = []
+            for name, value in config.COOKIES.items():
+                cookie_parts.append(f"{name}={value}")
+            cookie_header = '; '.join(cookie_parts)
+            self.session.headers.update({'Cookie': cookie_header})
+        # Add cookies from config
+        if hasattr(config, 'COOKIES'):
+            for cookie_name, cookie_value in config.COOKIES.items():
+                self.session.cookies.set(cookie_name, cookie_value)
+        # Add cookies to the session
+        if hasattr(config, 'COOKIES'):
+            # Update the session's cookies
+            for name, value in config.COOKIES.items():
+                self.session.cookies.set(name, value)
+        
     def get_soup(self, url):
         """Fetch a URL and return BeautifulSoup object"""
         for attempt in range(config.MAX_RETRIES):
