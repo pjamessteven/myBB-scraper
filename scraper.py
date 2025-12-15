@@ -114,12 +114,16 @@ class ForumScraper:
         num_threads = None
         joined_date = None
         
-        # Find username from largetext > a
+        # Find username from largetext
         username_elem = post_element.find('span', class_='largetext')
         if username_elem:
+            # First try to find an <a> tag (for registered users)
             username_link = username_elem.find('a')
             if username_link:
                 username = username_link.get_text(strip=True)
+            else:
+                # If no <a> tag, get the text directly (for unregistered users)
+                username = username_elem.get_text(strip=True)
         
         # Find author_statistics div
         stats_div = post_element.find('div', class_='author_statistics')
@@ -201,9 +205,13 @@ class ForumScraper:
         username = None
         username_elem = post_element.find('span', class_='largetext')
         if username_elem:
+            # First try to find an <a> tag (for registered users)
             username_link = username_elem.find('a')
             if username_link:
                 username = username_link.get_text(strip=True)
+            else:
+                # If no <a> tag, get the text directly (for unregistered users)
+                username = username_elem.get_text(strip=True)
         if not username:
             print(f"Debug: Could not find username in post {post_id}")
         
