@@ -81,25 +81,6 @@ class Database:
         
         # Try to drop any existing foreign key constraint on replies_to
         try:
-            # Find the constraint name
-            cursor.execute("""
-                SELECT conname
-                FROM pg_constraint 
-                WHERE conrelid = 'posts'::regclass 
-                AND contype = 'f' 
-                AND conname LIKE '%replies_to%'
-            """)
-            constraint = cursor.fetchone()
-            if constraint:
-                constraint_name = constraint[0]
-                cursor.execute(f"ALTER TABLE posts DROP CONSTRAINT {constraint_name}")
-                print(f"Dropped foreign key constraint {constraint_name} on replies_to")
-        except Exception as e:
-            print(f"Error dropping foreign key constraint on replies_to (may not exist): {e}")
-            self.conn.rollback()
-        
-        # Try to drop any existing foreign key constraint on replies_to
-        try:
             # Find the constraint name for foreign key on replies_to column
             cursor.execute("""
                 SELECT tc.constraint_name
