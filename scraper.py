@@ -167,9 +167,10 @@ class ForumScraper:
             nav_div = soup.find('div', class_='navigation')
             if nav_div:
                 links = nav_div.find_all('a')
-                if len(links) >= 3:
-                    # The third last link seems to be the board (Our Stories)
-                    board_name = links[-2].get_text(strip=True)
+                if links:
+                    # Combine all link texts to form full breadcrumb path
+                    link_texts = [link.get_text(strip=True) for link in links]
+                    board_name = ' › '.join(link_texts)
             
             # Extract thread date (from first post's date)
             thread_date = None
