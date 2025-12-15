@@ -50,7 +50,7 @@ class Database:
                 post_text TEXT,
                 username VARCHAR(255) REFERENCES users(username),
                 thread_id INTEGER REFERENCES threads(thread_id),
-                replies_to INTEGER REFERENCES posts(post_id)
+                replies_to INTEGER
             )
             """
         ]
@@ -73,10 +73,54 @@ class Database:
                 WHERE table_name='posts' and column_name='replies_to'
             """)
             if not cursor.fetchone():
-                cursor.execute("ALTER TABLE posts ADD COLUMN replies_to INTEGER REFERENCES posts(post_id)")
+                cursor.execute("ALTER TABLE posts ADD COLUMN replies_to INTEGER")
                 print("Added replies_to column to posts table")
         except Exception as e:
             print(f"Error checking/adding replies_to column: {e}")
+            self.conn.rollback()
+        
+        # Try to drop any existing foreign key constraint on replies_to
+        try:
+            # Find the constraint name
+            cursor.execute("""
+                SELECT conname
+                FROM pg_constraint 
+                WHERE conrelid = 'posts'::regclass 
+                AND contype = 'f' 
+                AND conname LIKE '%replies_to%'
+            """)
+            constraint = cursor.fetchone()
+            if constraint:
+                constraint_name = constraint[0]
+                cursor.execute(f"ALTER TABLE posts DROP CONSTRAINT {constraint_name}")
+                print(f"Dropped foreign key constraint {constraint_name} on replies_to")
+        except Exception as e:
+            print(f"Error dropping foreign key constraint on replies_to (may not exist): {e}")
+            self.conn.rollback()
+        
+        # Try to drop any existing foreign key constraint on replies_to
+        try:
+            # Find the constraint name for foreign key on replies_to column
+            cursor.execute("""
+                SELECT tc.constraint_name
+                FROM information_schema.table_constraints AS tc
+                JOIN information_schema.key_column_usage AS kcu
+                  ON tc.constraint_name = kcu.constraint_name
+                WHERE tc.table_name = 'posts'
+                  AND tc.constraint_type = 'FOREIGN KEY'
+                  AND kcu.column_name = 'replies_to'
+            """)
+            constraint = cursor.fetchone()
+            if constraint:
+                constraint_name = constraint[0]
+                # Use the constraint name to drop it
+                drop_query = sql.SQL("ALTER TABLE posts DROP CONSTRAINT {}").format(
+                    sql.Identifier(constraint_name)
+                )
+                cursor.execute(drop_query)
+                print(f"Dropped foreign key constraint {constraint_name} on replies_to")
+        except Exception as e:
+            print(f"Error dropping foreign key constraint on replies_to (may not exist): {e}")
             self.conn.rollback()
         
         cursor.close()
