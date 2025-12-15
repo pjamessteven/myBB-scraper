@@ -171,28 +171,32 @@ class ForumScraper:
         
         # Extract replies_to from blockquote
         replies_to = None
-        # Look for blockquote with class 'mycode_quote'
-        blockquote = post_element.find('blockquote', class_='mycode_quote')
-        if blockquote:
-            # Find the link inside the blockquote's cite
-            cite = blockquote.find('cite')
-            if cite:
-                # Look for a link
-                link = cite.find('a')
-                if link:
-                    href = link.get('href', '')
-                    # Parse the URL to extract the pid parameter
-                    # Handle relative URLs by joining with a base URL
-                    try:
-                        # Parse query parameters
-                        parsed = urlparse(href)
-                        query_params = parse_qs(parsed.query)
-                        if 'pid' in query_params:
-                            pid_value = query_params['pid'][0]
-                            if pid_value.isdigit():
-                                replies_to = int(pid_value)
-                    except Exception as e:
-                        print(f"Debug: Could not parse href {href}: {e}")
+        # Find the post_body element
+        post_body = post_element.find('div', class_='post_body')
+        if post_body:
+            # Look for blockquote elements that are direct children of post_body
+            # We want the top-level reply, which should be the first direct child blockquote
+            blockquotes = post_body.find_all('blockquote', class_='mycode_quote', recursive=False)
+            if blockquotes:
+                # Take the first top-level blockquote
+                blockquote = blockquotes[0]
+                # Find the link inside the blockquote's cite
+                cite = blockquote.find('cite')
+                if cite:
+                    # Look for a link
+                    link = cite.find('a')
+                    if link:
+                        href = link.get('href', '')
+                        # Parse the URL to extract the pid parameter
+                        try:
+                            parsed = urlparse(href)
+                            query_params = parse_qs(parsed.query)
+                            if 'pid' in query_params:
+                                pid_value = query_params['pid'][0]
+                                if pid_value.isdigit():
+                                    replies_to = int(pid_value)
+                        except Exception as e:
+                            print(f"Debug: Could not parse href {href}: {e}")
         
         return post_id, post_date, post_text, username, replies_to
     
