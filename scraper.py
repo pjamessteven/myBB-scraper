@@ -166,7 +166,17 @@ class ForumScraper:
             board_name = None
             nav_div = soup.find('div', class_='navigation')
             if nav_div:
-                links = nav_div.find_all('a')
+                # Find all <a> tags that are not part of pagination
+                links = []
+                for a in nav_div.find_all('a'):
+                    # Skip pagination links
+                    if a.get('class') and any(cls.startswith('pagination_') for cls in a.get('class')):
+                        continue
+                    # Also skip if inside a div with class 'pagination'
+                    parent_div = a.find_parent('div', class_='pagination')
+                    if parent_div:
+                        continue
+                    links.append(a)
                 if links:
                     # Combine all link texts to form full breadcrumb path
                     link_texts = [link.get_text(strip=True) for link in links]
