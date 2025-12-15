@@ -248,7 +248,33 @@ class ForumScraper:
             print(f"Failed to retrieve {url}")
             return False
         
-        # On first page, extract thread info and number of pages
+        # Find all posts on the page by their id pattern (more reliable than class)
+        posts = soup.find_all('div', id=re.compile(r'post_\d+'))
+        print(f"Found {len(posts)} posts on page {page_num}")
+        
+        # Track if we found at least one valid post
+        found_valid_posts = False
+        
+        for post in posts:
+            post_id, post_date, post_text, username, replies_to = self.parse_post(post, thread_id)
+            if post_id and username:
+                found_valid_posts = True
+                # Parse user info (posts, threads, joined date)
+                user_info = self.parse_user_info(post)
+                username_found, num_posts, num_threads, joined_date = user_info
+                # Ensure username matches
+                if username_found and username_found != username:
+                    # Use the one from parse_user_info
+                    username = username_found
+                # Insert user with extracted info
+                self.db.insert_user(username, num_posts, num_threads, joined_date)
+                # Insert post
+                self.db.insert_post(post_id, post_date, post_text, username, thread_id, replies_to)
+            else:
+                # Debug: print why post wasn't parsed
+                print(f"Warning: Failed to parse post from element {post.get('id')}")
+        
+        # On first page, extract thread info and number of pages, but only if we found valid posts
         if page_num == 1:
             # Extract thread title
             thread_title = None
@@ -295,35 +321,15 @@ class ForumScraper:
             # Get total pages
             total_pages = self.extract_number_of_pages(soup, thread_id)
             
-            # Insert thread info
-            if thread_title:
+            # Insert thread info only if we found valid posts
+            if found_valid_posts and thread_title:
                 self.db.insert_thread(thread_id, thread_title, board_name, thread_date)
                 print(f"Thread {thread_id}: {thread_title} (Board: {board_name}) - {total_pages} pages")
-        
-        # Find all posts on the page by their id pattern (more reliable than class)
-        posts = soup.find_all('div', id=re.compile(r'post_\d+'))
-        print(f"Found {len(posts)} posts on page {page_num}")
-        
-        for post in posts:
-            post_id, post_date, post_text, username, replies_to = self.parse_post(post, thread_id)
-            if post_id and username:
-                # Parse user info (posts, threads, joined date)
-                user_info = self.parse_user_info(post)
-                username_found, num_posts, num_threads, joined_date = user_info
-                # Ensure username matches
-                if username_found and username_found != username:
-                    # Use the one from parse_user_info
-                    username = username_found
-                # Insert user with extracted info
-                self.db.insert_user(username, num_posts, num_threads, joined_date)
-                # Insert post
-                self.db.insert_post(post_id, post_date, post_text, username, thread_id, replies_to)
-            else:
-                # Debug: print why post wasn't parsed
-                print(f"Warning: Failed to parse post from element {post.get('id')}")
+            elif not found_valid_posts:
+                print(f"Thread {thread_id}: No valid posts found, not saving thread to database")
         
         time.sleep(config.DELAY_BETWEEN_REQUESTS)
-        return True
+        return found_valid_posts
     
     def scrape_thread(self, thread_id):
         """Scrape all pages of a thread"""
@@ -348,14 +354,26 @@ class ForumScraper:
         
         total_pages = self.extract_number_of_pages(soup, thread_id)
         
+        # Track if any valid posts were found across all pages
+        any_valid_posts_found = False
+        
         # Scrape each page
         for page_num in range(1, total_pages + 1):
             success = self.scrape_thread_page(thread_id, page_num)
-            if not success:
+            # If scrape_thread_page returns True, it means it found valid posts on that page
+            if success:
+                any_valid_posts_found = True
+            elif not success and page_num == 1:
+                # If the first page has no valid posts, there's no point in continuing
+                print(f"No valid posts found on first page of thread {thread_id}, stopping")
+                break
+            else:
                 print(f"Failed to scrape page {page_num} of thread {thread_id}")
                 break
         
-        return True
+        # Return True only if we found at least one valid post
+        # This helps track whether the thread was actually saved to the database
+        return any_valid_posts_found
     
     def scrape_range(self, start_tid, end_tid):
         """Scrape a range of thread IDs"""
