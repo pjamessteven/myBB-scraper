@@ -47,20 +47,58 @@ class ForumScraper:
                     return None
         return None
     
-    def extract_number_of_pages(self, soup):
+    def extract_number_of_pages(self, soup, thread_id=None):
         """Extract the total number of pages from the first page of a thread"""
-        pagination = soup.find('div', class_='pagination')
-        if pagination:
-            page_links = pagination.find_all('a')
-            page_numbers = []
-            for link in page_links:
-                text = link.get_text()
+        # First, try to find pagination specific to this thread
+        # Look for links that point to showthread.php with this thread_id
+        page_numbers = set()
+        
+        # Find all links
+        for link in soup.find_all('a', href=True):
+            href = link['href']
+            # Check if it's a showthread.php link for this thread
+            if 'showthread.php' in href and f'tid={thread_id}' in href:
+                # Extract page number from the href
+                # Look for page= parameter
+                if 'page=' in href:
+                    # Parse the page number
+                    import re
+                    match = re.search(r'page=(\d+)', href)
+                    if match:
+                        try:
+                            page_num = int(match.group(1))
+                            page_numbers.add(page_num)
+                        except ValueError:
+                            pass
+                # Also check if the link text is a number (for numbered pagination)
+                text = link.get_text(strip=True)
                 if text.isdigit():
-                    page_numbers.append(int(text))
-            if page_numbers:
-                return max(page_numbers)
-        # If no pagination found, assume only one page
-        return 1
+                    try:
+                        page_num = int(text)
+                        page_numbers.add(page_num)
+                    except ValueError:
+                        pass
+        
+        # Also look for traditional pagination div as a fallback
+        if not page_numbers:
+            pagination = soup.find('div', class_='pagination')
+            if pagination:
+                page_links = pagination.find_all('a')
+                for link in page_links:
+                    text = link.get_text(strip=True)
+                    if text.isdigit():
+                        try:
+                            page_numbers.add(int(text))
+                        except ValueError:
+                            pass
+        
+        # Include page 1 always
+        page_numbers.add(1)
+        
+        if page_numbers:
+            return max(page_numbers)
+        else:
+            return 1
     
     def parse_user_info(self, post_element):
         """Extract user information from a post element"""
@@ -248,7 +286,7 @@ class ForumScraper:
                             continue
             
             # Get total pages
-            total_pages = self.extract_number_of_pages(soup)
+            total_pages = self.extract_number_of_pages(soup, thread_id)
             
             # Insert thread info
             if thread_title:
@@ -301,7 +339,7 @@ class ForumScraper:
             print(f"Thread {thread_id} not found")
             return False
         
-        total_pages = self.extract_number_of_pages(soup)
+        total_pages = self.extract_number_of_pages(soup, thread_id)
         
         # Scrape each page
         for page_num in range(1, total_pages + 1):
