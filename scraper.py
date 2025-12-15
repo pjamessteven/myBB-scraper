@@ -79,10 +79,14 @@ class ForumScraper:
                     except ValueError:
                         pass
         
-        # Also look for traditional pagination div as a fallback
+        # Also look for traditional pagination div as a fallback,
+        # but exclude pagination that is inside navigation breadcrumb (forum pagination)
         if not page_numbers:
-            pagination = soup.find('div', class_='pagination')
-            if pagination:
+            pagination_divs = soup.find_all('div', class_='pagination')
+            for pagination in pagination_divs:
+                # Skip if inside navigation breadcrumb
+                if pagination.find_parent('div', class_='navigation'):
+                    continue
                 page_links = pagination.find_all('a')
                 for link in page_links:
                     text = link.get_text(strip=True)
@@ -91,6 +95,9 @@ class ForumScraper:
                             page_numbers.add(int(text))
                         except ValueError:
                             pass
+                # If we found any page numbers from this pagination div, break
+                if page_numbers:
+                    break
         
         # Include page 1 always
         page_numbers.add(1)
