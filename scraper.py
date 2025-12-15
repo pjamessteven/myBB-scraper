@@ -100,15 +100,8 @@ class ForumScraper:
                     joined_str_clean = joined_str.strip()
                     try:
                         joined_date = datetime.strptime(joined_str_clean, '%b %Y')
-                    except:
+                    except Exception:
                         # Debug output
-                        print(f"Debug: Could not parse joined date '{joined_str}' for user {username}")
-                        pass
-                    except:
-                        # Debug output
-                        print(f"Debug: Could not parse joined date '{joined_str}' for user {username}")
-                        pass
-                    except:
                         print(f"Debug: Could not parse joined date '{joined_str}' for user {username}")
                         pass
         
