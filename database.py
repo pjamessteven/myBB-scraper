@@ -49,7 +49,8 @@ class Database:
                 post_date TIMESTAMP,
                 post_text TEXT,
                 username VARCHAR(255) REFERENCES users(username),
-                thread_id INTEGER REFERENCES threads(thread_id)
+                thread_id INTEGER REFERENCES threads(thread_id),
+                replies_to INTEGER REFERENCES posts(post_id)
             )
             """
         ]
@@ -63,6 +64,21 @@ class Database:
                 print(f"Error creating table: {e}")
                 self.conn.rollback()
                 raise
+        
+        # Add the replies_to column if it doesn't exist (for existing tables)
+        try:
+            cursor.execute("""
+                SELECT column_name 
+                FROM information_schema.columns 
+                WHERE table_name='posts' and column_name='replies_to'
+            """)
+            if not cursor.fetchone():
+                cursor.execute("ALTER TABLE posts ADD COLUMN replies_to INTEGER REFERENCES posts(post_id)")
+                print("Added replies_to column to posts table")
+        except Exception as e:
+            print(f"Error checking/adding replies_to column: {e}")
+            self.conn.rollback()
+        
         cursor.close()
     
     def insert_user(self, username, num_posts, num_threads, joined_date):
@@ -103,20 +119,21 @@ class Database:
         finally:
             cursor.close()
     
-    def insert_post(self, post_id, post_date, post_text, username, thread_id):
+    def insert_post(self, post_id, post_date, post_text, username, thread_id, replies_to=None):
         """Insert or update a post"""
         cursor = self.conn.cursor()
         query = """
-        INSERT INTO posts (post_id, post_date, post_text, username, thread_id)
-        VALUES (%s, %s, %s, %s, %s)
+        INSERT INTO posts (post_id, post_date, post_text, username, thread_id, replies_to)
+        VALUES (%s, %s, %s, %s, %s, %s)
         ON CONFLICT (post_id) DO UPDATE SET
             post_date = EXCLUDED.post_date,
             post_text = EXCLUDED.post_text,
             username = EXCLUDED.username,
-            thread_id = EXCLUDED.thread_id
+            thread_id = EXCLUDED.thread_id,
+            replies_to = EXCLUDED.replies_to
         """
         try:
-            cursor.execute(query, (post_id, post_date, post_text, username, thread_id))
+            cursor.execute(query, (post_id, post_date, post_text, username, thread_id, replies_to))
         except Exception as e:
             print(f"Error inserting post {post_id}: {e}")
             self.conn.rollback()

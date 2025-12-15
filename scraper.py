@@ -3,7 +3,7 @@ from bs4 import BeautifulSoup
 import time
 import re
 from datetime import datetime
-from urllib.parse import urljoin
+from urllib.parse import urljoin, parse_qs, urlparse
 import config
 from database import Database
 
@@ -150,7 +150,12 @@ class ForumScraper:
         post_text = None
         text_elem = post_element.find('div', class_='post_body')
         if text_elem:
-            post_text = text_elem.get_text(strip=True)
+            # Remove blockquote elements to get clean post text
+            # We'll make a copy to avoid modifying the original
+            text_elem_copy = BeautifulSoup(str(text_elem), 'lxml')
+            for blockquote in text_elem_copy.find_all('blockquote', class_='mycode_quote'):
+                blockquote.decompose()
+            post_text = text_elem_copy.get_text(strip=True)
         if not post_text:
             print(f"Debug: Could not find post_body in post {post_id}")
         
@@ -164,7 +169,32 @@ class ForumScraper:
         if not username:
             print(f"Debug: Could not find username in post {post_id}")
         
-        return post_id, post_date, post_text, username
+        # Extract replies_to from blockquote
+        replies_to = None
+        # Look for blockquote with class 'mycode_quote'
+        blockquote = post_element.find('blockquote', class_='mycode_quote')
+        if blockquote:
+            # Find the link inside the blockquote's cite
+            cite = blockquote.find('cite')
+            if cite:
+                # Look for a link
+                link = cite.find('a')
+                if link:
+                    href = link.get('href', '')
+                    # Parse the URL to extract the pid parameter
+                    # Handle relative URLs by joining with a base URL
+                    try:
+                        # Parse query parameters
+                        parsed = urlparse(href)
+                        query_params = parse_qs(parsed.query)
+                        if 'pid' in query_params:
+                            pid_value = query_params['pid'][0]
+                            if pid_value.isdigit():
+                                replies_to = int(pid_value)
+                    except Exception as e:
+                        print(f"Debug: Could not parse href {href}: {e}")
+        
+        return post_id, post_date, post_text, username, replies_to
     
     def scrape_thread_page(self, thread_id, page_num):
         """Scrape a single page of a thread"""
@@ -233,7 +263,7 @@ class ForumScraper:
         print(f"Found {len(posts)} posts on page {page_num}")
         
         for post in posts:
-            post_id, post_date, post_text, username = self.parse_post(post, thread_id)
+            post_id, post_date, post_text, username, replies_to = self.parse_post(post, thread_id)
             if post_id and username:
                 # Parse user info (posts, threads, joined date)
                 user_info = self.parse_user_info(post)
@@ -245,7 +275,7 @@ class ForumScraper:
                 # Insert user with extracted info
                 self.db.insert_user(username, num_posts, num_threads, joined_date)
                 # Insert post
-                self.db.insert_post(post_id, post_date, post_text, username, thread_id)
+                self.db.insert_post(post_id, post_date, post_text, username, thread_id, replies_to)
             else:
                 # Debug: print why post wasn't parsed
                 print(f"Warning: Failed to parse post from element {post.get('id')}")
