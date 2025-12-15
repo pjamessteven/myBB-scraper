@@ -95,8 +95,14 @@ class ForumScraper:
                 try:
                     # Convert "Dec 2021" to datetime (day set to 1)
                     joined_date = datetime.strptime(joined_str, '%b %Y')
-                except:
-                    pass
+                except Exception as e:
+                    # Try alternative format maybe with extra spaces
+                    joined_str_clean = joined_str.strip()
+                    try:
+                        joined_date = datetime.strptime(joined_str_clean, '%b %Y')
+                    except:
+                        print(f"Debug: Could not parse joined date '{joined_str}' for user {username}")
+                        pass
         
         return username, num_posts, num_threads, joined_date
     
@@ -206,11 +212,9 @@ class ForumScraper:
                 self.db.insert_thread(thread_id, thread_title, board_name, thread_date)
                 print(f"Thread {thread_id}: {thread_title} (Board: {board_name}) - {total_pages} pages")
         
-        # Find all posts on the page
-        posts = soup.find_all('div', class_='post')
-        if not posts:
-            # Try alternative class names
-            posts = soup.find_all('div', id=re.compile(r'post_\d+'))
+        # Find all posts on the page by their id pattern (more reliable than class)
+        posts = soup.find_all('div', id=re.compile(r'post_\d+'))
+        print(f"Found {len(posts)} posts on page {page_num}")
         
         for post in posts:
             post_id, post_date, post_text, username = self.parse_post(post, thread_id)
@@ -226,6 +230,9 @@ class ForumScraper:
                 self.db.insert_user(username, num_posts, num_threads, joined_date)
                 # Insert post
                 self.db.insert_post(post_id, post_date, post_text, username, thread_id)
+            else:
+                # Debug: print why post wasn't parsed
+                print(f"Warning: Failed to parse post from element {post.get('id')}")
         
         time.sleep(config.DELAY_BETWEEN_REQUESTS)
         return True
