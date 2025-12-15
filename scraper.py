@@ -46,20 +46,40 @@ class ForumScraper:
     
     def parse_user_info(self, post_element):
         """Extract user information from a post element"""
-        # This will need to be customized based on the actual HTML structure
-        # For now, let's assume a basic structure
         username = None
         num_posts = None
         num_threads = None
         joined_date = None
         
-        # Find username
-        username_elem = post_element.find('a', class_='username')
+        # Find username from largetext > a
+        username_elem = post_element.find('span', class_='largetext')
         if username_elem:
-            username = username_elem.get_text(strip=True)
+            username_link = username_elem.find('a')
+            if username_link:
+                username = username_link.get_text(strip=True)
         
-        # These selectors need to be adjusted based on actual forum structure
-        # For demonstration, we'll use placeholder logic
+        # Find author_statistics div
+        stats_div = post_element.find('div', class_='author_statistics')
+        if stats_div:
+            stats_text = stats_div.get_text()
+            # Parse Posts: X
+            posts_match = re.search(r'Posts:\s*(\d+)', stats_text)
+            if posts_match:
+                num_posts = int(posts_match.group(1))
+            # Parse Threads: X
+            threads_match = re.search(r'Threads:\s*(\d+)', stats_text)
+            if threads_match:
+                num_threads = int(threads_match.group(1))
+            # Parse Joined: MMM YYYY
+            joined_match = re.search(r'Joined:\s*(\w+\s+\d{4})', stats_text)
+            if joined_match:
+                joined_str = joined_match.group(1)
+                try:
+                    # Convert "Dec 2021" to datetime (day set to 1)
+                    joined_date = datetime.strptime(joined_str, '%b %Y')
+                except:
+                    pass
+        
         return username, num_posts, num_threads, joined_date
     
     def parse_post(self, post_element, thread_id):
@@ -68,7 +88,6 @@ class ForumScraper:
         post_id = None
         post_id_elem = post_element.get('id')
         if post_id_elem:
-            # Try to extract numeric ID
             match = re.search(r'(\d+)', post_id_elem)
             if match:
                 post_id = int(match.group(1))
@@ -78,11 +97,18 @@ class ForumScraper:
         date_elem = post_element.find('span', class_='post_date')
         if date_elem:
             date_text = date_elem.get_text(strip=True)
-            # Try to parse date - this will need to be adjusted
-            try:
-                post_date = datetime.strptime(date_text, '%Y-%m-%d %H:%M:%S')
-            except:
-                pass
+            # Remove any trailing edited indicator
+            # Example: "09-Dec-2021, 10:06 PM " or "09-Dec-2021, 10:06 PM (This post was last modified: ...)"
+            # We'll try to parse the part before the first '('
+            if '(' in date_text:
+                date_text = date_text.split('(')[0].strip()
+            # Try common formats seen in the sample
+            for fmt in ('%d-%b-%Y, %I:%M %p', '%d-%b-%Y, %H:%M'):
+                try:
+                    post_date = datetime.strptime(date_text, fmt)
+                    break
+                except:
+                    continue
         
         # Extract post text
         post_text = None
@@ -90,11 +116,13 @@ class ForumScraper:
         if text_elem:
             post_text = text_elem.get_text(strip=True)
         
-        # Extract username
+        # Extract username (same as in parse_user_info)
         username = None
-        user_elem = post_element.find('a', class_='username')
-        if user_elem:
-            username = user_elem.get_text(strip=True)
+        username_elem = post_element.find('span', class_='largetext')
+        if username_elem:
+            username_link = username_elem.find('a')
+            if username_link:
+                username = username_link.get_text(strip=True)
         
         return post_id, post_date, post_text, username
     
@@ -116,21 +144,35 @@ class ForumScraper:
             if title_elem:
                 thread_title = title_elem.get_text(strip=True)
             
-            # Extract board name
+            # Extract board name from navigation breadcrumb
             board_name = None
-            breadcrumb = soup.find('div', class_='breadcrumb')
-            if breadcrumb:
-                links = breadcrumb.find_all('a')
-                if len(links) > 1:
+            nav_div = soup.find('div', class_='navigation')
+            if nav_div:
+                links = nav_div.find_all('a')
+                if len(links) >= 3:
+                    # The third last link seems to be the board (Our Stories)
                     board_name = links[-2].get_text(strip=True)
             
-            # Extract thread date (from first post)
+            # Extract thread date (from first post's date)
             thread_date = None
+            first_post = soup.find('div', class_='post')
+            if first_post:
+                date_elem = first_post.find('span', class_='post_date')
+                if date_elem:
+                    date_text = date_elem.get_text(strip=True)
+                    if '(' in date_text:
+                        date_text = date_text.split('(')[0].strip()
+                    for fmt in ('%d-%b-%Y, %I:%M %p', '%d-%b-%Y, %H:%M'):
+                        try:
+                            thread_date = datetime.strptime(date_text, fmt)
+                            break
+                        except:
+                            continue
             
             # Get total pages
             total_pages = self.extract_number_of_pages(soup)
             
-            # Insert thread info (placeholder date for now)
+            # Insert thread info
             if thread_title:
                 self.db.insert_thread(thread_id, thread_title, board_name, thread_date)
                 print(f"Thread {thread_id}: {thread_title} (Board: {board_name}) - {total_pages} pages")
@@ -144,8 +186,15 @@ class ForumScraper:
         for post in posts:
             post_id, post_date, post_text, username = self.parse_post(post, thread_id)
             if post_id and username:
-                # Insert user with placeholder info
-                self.db.insert_user(username, None, None, None)
+                # Parse user info (posts, threads, joined date)
+                user_info = self.parse_user_info(post)
+                username_found, num_posts, num_threads, joined_date = user_info
+                # Ensure username matches
+                if username_found and username_found != username:
+                    # Use the one from parse_user_info
+                    username = username_found
+                # Insert user with extracted info
+                self.db.insert_user(username, num_posts, num_threads, joined_date)
                 # Insert post
                 self.db.insert_post(post_id, post_date, post_text, username, thread_id)
         
