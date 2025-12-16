@@ -194,9 +194,21 @@ class ForumScraper:
             # Make a copy to avoid modifying the original
             text_elem_copy = BeautifulSoup(str(text_elem), 'lxml')
             
-            # Remove blockquote elements to get clean post text
+            # Process blockquote elements to include their text in the post
+            # Instead of removing them, we'll extract their text and mark it as quoted
             for blockquote in text_elem_copy.find_all('blockquote', class_='mycode_quote'):
-                blockquote.decompose()
+                # Get the text from the blockquote
+                quote_text = blockquote.get_text(separator='\n', strip=False)
+                # Clean up the text: remove leading/trailing whitespace
+                quote_lines = [line.strip() for line in quote_text.split('\n')]
+                # Remove empty lines
+                quote_lines = [line for line in quote_lines if line]
+                # Prefix each line with "> " to indicate it's a quote
+                quoted_lines = [f"> {line}" for line in quote_lines]
+                # Join them back
+                formatted_quote = '\n'.join(quoted_lines)
+                # Replace the blockquote with the formatted quote text
+                blockquote.replace_with(f'\n\n{formatted_quote}\n\n')
             
             # Process all <a> tags to ensure URLs are valid
             for a_tag in text_elem_copy.find_all('a', href=True):
