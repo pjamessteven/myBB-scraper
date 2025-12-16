@@ -197,7 +197,19 @@ class ForumScraper:
             text_elem_copy = BeautifulSoup(str(text_elem), 'lxml')
             for blockquote in text_elem_copy.find_all('blockquote', class_='mycode_quote'):
                 blockquote.decompose()
-            post_text = text_elem_copy.get_text(strip=True)
+            # Get text with newlines preserved
+            # First, get all text nodes with proper spacing
+            # We'll use get_text with separator and then clean up
+            raw_text = text_elem_copy.get_text(separator='\n', strip=False)
+            # Clean up the text: remove excessive newlines and spaces
+            # Split by newline, strip each line, and filter out empty lines
+            lines = [line.strip() for line in raw_text.split('\n')]
+            # Join non-empty lines with a single newline between them
+            post_text = '\n'.join(line for line in lines if line)
+            # If post_text is empty after processing, try a different approach
+            if not post_text:
+                # Fallback to original method
+                post_text = text_elem_copy.get_text(strip=True)
         if not post_text:
             print(f"Debug: Could not find post_body in post {post_id}")
         
