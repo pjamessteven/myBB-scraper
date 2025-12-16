@@ -62,7 +62,6 @@ class ForumScraper:
                 # Look for page= parameter
                 if 'page=' in href:
                     # Parse the page number
-                    import re
                     match = re.search(r'page=(\d+)', href)
                     if match:
                         try:
@@ -226,7 +225,6 @@ class ForumScraper:
             # Join lines, preserving blank lines for paragraph breaks
             post_text = '\n'.join(processed_lines)
             # Clean up multiple spaces
-            import re
             post_text = re.sub(r'[ \t]+', ' ', post_text)
             # If post_text is empty after processing, try a different approach
             if not post_text:
