@@ -210,28 +210,6 @@ class ForumScraper:
                 # Replace the blockquote with the formatted quote text
                 blockquote.replace_with(f'\n\n{formatted_quote}\n\n')
             
-            # Process all <a> tags to ensure URLs are valid
-            for a_tag in text_elem_copy.find_all('a', href=True):
-                href = a_tag.get('href', '').strip()
-                inner_text = a_tag.get_text(strip=True)
-                
-                # Check if the inner text appears to be a truncated URL
-                # Common patterns: contains "...", ends with "...", or is clearly a partial URL
-                is_truncated = ('...' in inner_text) or \
-                               (inner_text.startswith('http') and '...' in inner_text) or \
-                               (href.startswith('http') and not inner_text.startswith('http'))
-                
-                if href and is_truncated:
-                    # Replace the entire tag with the full URL
-                    a_tag.replace_with(href)
-                elif href and href != inner_text:
-                    # Keep the link text but append the full URL in parentheses
-                    # Replace the tag with: "text (url)"
-                    a_tag.replace_with(f"{inner_text} ({href})")
-                else:
-                    # If href and inner_text are the same, or no href, just keep the text
-                    a_tag.replace_with(inner_text)
-            
             # Replace <br> tags with newlines to preserve line breaks
             for br in text_elem_copy.find_all('br'):
                 br.replace_with('\n')
