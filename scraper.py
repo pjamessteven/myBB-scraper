@@ -254,19 +254,37 @@ class ForumScraper:
                 
                 # Get the text from the blockquote, preserving newlines
                 quote_text = blockquote.get_text(separator='\n', strip=False)
-                # Clean up the text: remove leading/trailing whitespace from each line
-                quote_lines = [line.rstrip() for line in quote_text.split('\n')]
-                # Remove empty lines at the beginning and end
-                while quote_lines and quote_lines[0] == '':
-                    quote_lines.pop(0)
-                while quote_lines and quote_lines[-1] == '':
-                    quote_lines.pop(-1)
+                # Split into lines and process
+                lines = quote_text.split('\n')
+                # Clean up each line
+                cleaned_lines = []
+                for line in lines:
+                    line = line.rstrip()
+                    cleaned_lines.append(line)
+                # Remove leading and trailing empty lines
+                while cleaned_lines and cleaned_lines[0] == '':
+                    cleaned_lines.pop(0)
+                while cleaned_lines and cleaned_lines[-1] == '':
+                    cleaned_lines.pop(-1)
+                # Compress multiple consecutive empty lines within the quote to single empty lines
+                compressed_lines = []
+                for line in cleaned_lines:
+                    if line == '':
+                        if not compressed_lines or compressed_lines[-1] != '':
+                            compressed_lines.append('')
+                    else:
+                        compressed_lines.append(line)
                 # Prefix each line with "> " to indicate it's a quote
-                quoted_lines = [f"> {line}" if line != '' else '>' for line in quote_lines]
+                quoted_lines = []
+                for line in compressed_lines:
+                    if line == '':
+                        quoted_lines.append('>')
+                    else:
+                        quoted_lines.append(f"> {line}")
                 # Join them back with newlines
                 formatted_quote = '\n'.join(quoted_lines)
-                # Replace the blockquote with the formatted quote text, preserving newlines
-                blockquote.replace_with(f'\n{formatted_quote}\n')
+                # Replace the blockquote with the formatted quote text
+                blockquote.replace_with(formatted_quote)
             
             # Replace <br> tags with newlines to preserve line breaks
             for br in text_elem_copy.find_all('br'):
