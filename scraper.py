@@ -201,11 +201,33 @@ class ForumScraper:
             # First, get all text nodes with proper spacing
             # We'll use get_text with separator and then clean up
             raw_text = text_elem_copy.get_text(separator='\n', strip=False)
-            # Clean up the text: remove excessive newlines and spaces
-            # Split by newline, strip each line, and filter out empty lines
-            lines = [line.strip() for line in raw_text.split('\n')]
-            # Join non-empty lines with a single newline between them
-            post_text = '\n'.join(line for line in lines if line)
+            # Split into lines
+            lines = raw_text.split('\n')
+            # Process lines to intelligently join them
+            processed_lines = []
+            for i, line in enumerate(lines):
+                # Strip trailing whitespace but keep leading whitespace (for indentation)
+                # Remove any carriage returns
+                line = line.rstrip('\r\t ')
+                # If line is empty after stripping, it's a blank line
+                if not line:
+                    processed_lines.append('')
+                    continue
+                # Check if we should join with previous line
+                if i > 0 and processed_lines:
+                    prev_line = processed_lines[-1]
+                    if prev_line and not prev_line.endswith((' ', '\n', '')):
+                        # Check if this line starts with a capital letter and previous line ends with sentence-ending punctuation
+                        if line and line[0].isupper() and prev_line and prev_line[-1] in '.!?"\'':
+                            # Join with a space instead of newline
+                            processed_lines[-1] = prev_line + ' ' + line
+                            continue
+                processed_lines.append(line)
+            # Join lines, preserving blank lines for paragraph breaks
+            post_text = '\n'.join(processed_lines)
+            # Clean up multiple spaces
+            import re
+            post_text = re.sub(r'[ \t]+', ' ', post_text)
             # If post_text is empty after processing, try a different approach
             if not post_text:
                 # Fallback to original method
