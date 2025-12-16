@@ -194,32 +194,8 @@ class ForumScraper:
             # Make a copy to avoid modifying the original
             text_elem_copy = BeautifulSoup(str(text_elem), 'lxml')
             
-            # Process all <a> tags to ensure URLs are valid (do this before processing blockquotes)
-            for a_tag in text_elem_copy.find_all('a', href=True):
-                href = a_tag.get('href', '').strip()
-                inner_text = a_tag.get_text(strip=True)
-                
-                # Check if the inner text appears to be a truncated URL
-                # Common patterns: contains "...", ends with "...", or is clearly a partial URL
-                is_truncated = ('...' in inner_text) or \
-                               (inner_text.startswith('http') and '...' in inner_text) or \
-                               (href.startswith('http') and not inner_text.startswith('http'))
-                
-                if href and is_truncated:
-                    # Replace the entire tag with the full URL
-                    a_tag.replace_with(href)
-                elif href and href != inner_text:
-                    # Keep the link text but append the full URL in parentheses
-                    # Replace the tag with: "text (url)"
-                    a_tag.replace_with(f"{inner_text} ({href})")
-                else:
-                    # If href and inner_text are the same, or no href, just keep the text
-                    a_tag.replace_with(inner_text)
-            
-            # Process blockquote elements
-            # We want to remove blockquotes that are replies to other posts (contain post IDs)
-            # and keep only blockquotes that are regular quotes (not replies)
-            # Process in reverse order to handle nested blockquotes correctly
+            # First, identify and remove reply blockquotes (those with post IDs)
+            # We need to do this before processing <a> tags to preserve the href for detection
             all_blockquotes = list(text_elem_copy.find_all('blockquote', class_='mycode_quote'))
             for blockquote in reversed(all_blockquotes):
                 # Check if the blockquote still exists (may have been removed by parent decomposition)
@@ -241,9 +217,37 @@ class ForumScraper:
                 # If it's a reply quote, remove it entirely
                 if is_reply_quote:
                     blockquote.decompose()
+            
+            # Now process all remaining <a> tags to ensure URLs are valid
+            for a_tag in text_elem_copy.find_all('a', href=True):
+                href = a_tag.get('href', '').strip()
+                inner_text = a_tag.get_text(strip=True)
+                
+                # Check if the inner text appears to be a truncated URL
+                # Common patterns: contains "...", ends with "...", or is clearly a partial URL
+                is_truncated = ('...' in inner_text) or \
+                               (inner_text.startswith('http') and '...' in inner_text) or \
+                               (href.startswith('http') and not inner_text.startswith('http'))
+                
+                if href and is_truncated:
+                    # Replace the entire tag with the full URL
+                    a_tag.replace_with(href)
+                elif href and href != inner_text:
+                    # Keep the link text but append the full URL in parentheses
+                    # Replace the tag with: "text (url)"
+                    a_tag.replace_with(f"{inner_text} ({href})")
+                else:
+                    # If href and inner_text are the same, or no href, just keep the text
+                    a_tag.replace_with(inner_text)
+            
+            # Now process remaining blockquote elements (regular quotes, not replies)
+            # These are blockquotes that weren't removed in the first pass
+            remaining_blockquotes = list(text_elem_copy.find_all('blockquote', class_='mycode_quote'))
+            for blockquote in remaining_blockquotes:
+                # Check if the blockquote still exists
+                if not blockquote or not blockquote.parent:
                     continue
                 
-                # Otherwise, it's a regular quote that we want to include
                 # Get the text from the blockquote
                 quote_text = blockquote.get_text(separator='\n', strip=False)
                 # Clean up the text: remove leading/trailing whitespace
