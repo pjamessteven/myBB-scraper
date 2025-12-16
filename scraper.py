@@ -203,21 +203,58 @@ class ForumScraper:
             # Get text with newlines preserved
             raw_text = text_elem_copy.get_text(separator='\n', strip=False)
             
-            # Split into lines and clean up
-            lines = raw_text.split('\n')
-            cleaned_lines = []
-            for line in lines:
-                # Strip trailing whitespace
-                line = line.rstrip()
-                # Collapse multiple spaces within the line
-                line = re.sub(r'[ \t]+', ' ', line)
-                # Only add non-empty lines
-                if line:
-                    cleaned_lines.append(line)
+            # Process the raw text to handle punctuation and line breaks more naturally
+            # First, normalize whitespace: replace any sequence of spaces/tabs with a single space
+            raw_text = re.sub(r'[ \t]+', ' ', raw_text)
             
-            # Join non-empty lines with single newlines
-            # This prevents multiple consecutive blank lines
-            post_text = '\n\n'.join(cleaned_lines)
+            # Handle line breaks: split into lines, strip each line, and remove empty lines
+            lines = raw_text.split('\n')
+            non_empty_lines = []
+            for line in lines:
+                stripped = line.strip()
+                if stripped:
+                    non_empty_lines.append(stripped)
+            
+            # Now, we need to decide where to insert paragraph breaks
+            # A simple heuristic: if a line ends with sentence-ending punctuation (.!?) and the next line starts with a capital letter,
+            # treat it as a paragraph break
+            processed_lines = []
+            i = 0
+            while i < len(non_empty_lines):
+                current_line = non_empty_lines[i]
+                # Check if we should look ahead
+                if i < len(non_empty_lines) - 1:
+                    next_line = non_empty_lines[i + 1]
+                    # Check if current line ends with sentence punctuation
+                    if re.search(r'[.!?]["\']?$', current_line):
+                        # Check if next line starts with a capital letter
+                        if next_line and next_line[0].isupper():
+                            # Add current line and a paragraph break
+                            processed_lines.append(current_line)
+                            processed_lines.append('')  # Empty string will become paragraph break
+                            i += 1
+                            continue
+                # Otherwise, just add the line
+                processed_lines.append(current_line)
+                i += 1
+            
+            # Join lines: consecutive lines become single lines, empty lines become paragraph breaks
+            # We'll build paragraphs
+            paragraphs = []
+            current_paragraph = []
+            for line in processed_lines:
+                if line == '':
+                    if current_paragraph:
+                        paragraphs.append(' '.join(current_paragraph))
+                        current_paragraph = []
+                else:
+                    current_paragraph.append(line)
+            # Add the last paragraph if any
+            if current_paragraph:
+                paragraphs.append(' '.join(current_paragraph))
+            
+            # Join paragraphs with two newlines
+            post_text = '\n\n'.join(paragraphs)
             
             # Remove leading/trailing whitespace
             post_text = post_text.strip()
