@@ -1,0 +1,16 @@
+A simple scraper for myBB forums that exports all posts to a postgres db.
+
+myBB URLs look like this: https://myforum.com/Support/showthread.php?tid=33&page=2
+
+This scraper simply iterates through every thread ID (tid) and then for each thread, iterates through every page. 
+
+It saves the data into three postgres tables: 'posts', 'threads', and 'users'. 
+
+If the forum requires authentication, authenticate with your browser, then copy the auth cookie and put it in the .env file. 
+
+Installation and usage:
+
+> pip3 install -r requirements.txt
+> python3 run_scraper.py
+
+This was mostly coded with Aider and Deepseek. 
