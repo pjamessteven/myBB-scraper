@@ -248,18 +248,25 @@ class ForumScraper:
                 if not blockquote or not blockquote.parent:
                     continue
                 
-                # Get the text from the blockquote
+                # Before processing, replace <br> tags inside the blockquote with newlines
+                for br in blockquote.find_all('br'):
+                    br.replace_with('\n')
+                
+                # Get the text from the blockquote, preserving newlines
                 quote_text = blockquote.get_text(separator='\n', strip=False)
-                # Clean up the text: remove leading/trailing whitespace
-                quote_lines = [line.strip() for line in quote_text.split('\n')]
-                # Remove empty lines
-                quote_lines = [line for line in quote_lines if line]
+                # Clean up the text: remove leading/trailing whitespace from each line
+                quote_lines = [line.rstrip() for line in quote_text.split('\n')]
+                # Remove empty lines at the beginning and end
+                while quote_lines and quote_lines[0] == '':
+                    quote_lines.pop(0)
+                while quote_lines and quote_lines[-1] == '':
+                    quote_lines.pop(-1)
                 # Prefix each line with "> " to indicate it's a quote
-                quoted_lines = [f"> {line}" for line in quote_lines]
-                # Join them back
+                quoted_lines = [f"> {line}" if line != '' else '>' for line in quote_lines]
+                # Join them back with newlines
                 formatted_quote = '\n'.join(quoted_lines)
-                # Replace the blockquote with the formatted quote text
-                blockquote.replace_with(f'\n\n{formatted_quote}\n\n')
+                # Replace the blockquote with the formatted quote text, preserving newlines
+                blockquote.replace_with(f'\n{formatted_quote}\n')
             
             # Replace <br> tags with newlines to preserve line breaks
             for br in text_elem_copy.find_all('br'):
@@ -268,58 +275,29 @@ class ForumScraper:
             # Get text with newlines preserved
             raw_text = text_elem_copy.get_text(separator='\n', strip=False)
             
-            # Process the raw text to handle punctuation and line breaks more naturally
-            # First, normalize whitespace: replace any sequence of spaces/tabs with a single space
-            raw_text = re.sub(r'[ \t]+', ' ', raw_text)
-            
-            # Handle line breaks: split into lines, strip each line, and remove empty lines
+            # Split into lines and process each line
             lines = raw_text.split('\n')
-            non_empty_lines = []
-            for line in lines:
-                stripped = line.strip()
-                if stripped:
-                    non_empty_lines.append(stripped)
-            
-            # Now, we need to decide where to insert paragraph breaks
-            # A simple heuristic: if a line ends with sentence-ending punctuation (.!?) and the next line starts with a capital letter,
-            # treat it as a paragraph break
             processed_lines = []
-            i = 0
-            while i < len(non_empty_lines):
-                current_line = non_empty_lines[i]
-                # Check if we should look ahead
-                if i < len(non_empty_lines) - 1:
-                    next_line = non_empty_lines[i + 1]
-                    # Check if current line ends with sentence punctuation
-                    if re.search(r'[.!?]["\']?$', current_line):
-                        # Check if next line starts with a capital letter
-                        if next_line and next_line[0].isupper():
-                            # Add current line and a paragraph break
-                            processed_lines.append(current_line)
-                            processed_lines.append('')  # Empty string will become paragraph break
-                            i += 1
-                            continue
-                # Otherwise, just add the line
-                processed_lines.append(current_line)
-                i += 1
             
-            # Join lines: consecutive lines become single lines, empty lines become paragraph breaks
-            # We'll build paragraphs
-            paragraphs = []
-            current_paragraph = []
-            for line in processed_lines:
+            for line in lines:
+                # Strip trailing whitespace, but keep leading whitespace (for indentation)
+                line = line.rstrip()
+                # Skip empty lines that are between other empty lines (compress multiple blank lines)
                 if line == '':
-                    if current_paragraph:
-                        paragraphs.append(' '.join(current_paragraph))
-                        current_paragraph = []
+                    if not processed_lines or processed_lines[-1] != '':
+                        processed_lines.append('')
                 else:
-                    current_paragraph.append(line)
-            # Add the last paragraph if any
-            if current_paragraph:
-                paragraphs.append(' '.join(current_paragraph))
+                    processed_lines.append(line)
             
-            # Join paragraphs with two newlines
-            post_text = '\n\n'.join(paragraphs)
+            # Remove leading empty lines
+            while processed_lines and processed_lines[0] == '':
+                processed_lines.pop(0)
+            # Remove trailing empty lines
+            while processed_lines and processed_lines[-1] == '':
+                processed_lines.pop(-1)
+            
+            # Join lines back together
+            post_text = '\n'.join(processed_lines)
             
             # Remove leading/trailing whitespace
             post_text = post_text.strip()
