@@ -217,7 +217,7 @@ class ForumScraper:
             
             # Join non-empty lines with single newlines
             # This prevents multiple consecutive blank lines
-            post_text = '\n'.join(cleaned_lines)
+            post_text = '\n\n'.join(cleaned_lines)
             
             # Remove leading/trailing whitespace
             post_text = post_text.strip()
