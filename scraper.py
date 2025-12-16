@@ -219,6 +219,20 @@ class ForumScraper:
             # Process blockquote elements to include their text in the post
             # Instead of removing them, we'll extract their text and mark it as quoted
             for blockquote in text_elem_copy.find_all('blockquote', class_='mycode_quote'):
+                # Check if this blockquote contains a link to another post (pid=)
+                # If it does, we should skip it since we're already capturing this info via replies_to
+                contains_post_link = False
+                for a_tag in blockquote.find_all('a', href=True):
+                    href = a_tag.get('href', '')
+                    if 'pid=' in href:
+                        contains_post_link = True
+                        break
+                
+                # If the blockquote contains a post link, skip it
+                if contains_post_link:
+                    blockquote.decompose()
+                    continue
+                
                 # Get the text from the blockquote
                 quote_text = blockquote.get_text(separator='\n', strip=False)
                 # Clean up the text: remove leading/trailing whitespace
