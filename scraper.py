@@ -191,12 +191,36 @@ class ForumScraper:
         post_text = None
         text_elem = post_element.find('div', class_='post_body')
         if text_elem:
-            # Remove blockquote elements to get clean post text
-            # We'll make a copy to avoid modifying the original
+            # Make a copy to avoid modifying the original
             text_elem_copy = BeautifulSoup(str(text_elem), 'lxml')
+            
+            # Remove blockquote elements to get clean post text
             for blockquote in text_elem_copy.find_all('blockquote', class_='mycode_quote'):
                 blockquote.decompose()
-            # First, replace <br> tags with newlines to preserve line breaks
+            
+            # Process all <a> tags to ensure URLs are valid
+            for a_tag in text_elem_copy.find_all('a', href=True):
+                href = a_tag.get('href', '').strip()
+                inner_text = a_tag.get_text(strip=True)
+                
+                # Check if the inner text appears to be a truncated URL
+                # Common patterns: contains "...", ends with "...", or is clearly a partial URL
+                is_truncated = ('...' in inner_text) or \
+                               (inner_text.startswith('http') and '...' in inner_text) or \
+                               (href.startswith('http') and not inner_text.startswith('http'))
+                
+                if href and is_truncated:
+                    # Replace the entire tag with the full URL
+                    a_tag.replace_with(href)
+                elif href and href != inner_text:
+                    # Keep the link text but append the full URL in parentheses
+                    # Replace the tag with: "text (url)"
+                    a_tag.replace_with(f"{inner_text} ({href})")
+                else:
+                    # If href and inner_text are the same, or no href, just keep the text
+                    a_tag.replace_with(inner_text)
+            
+            # Replace <br> tags with newlines to preserve line breaks
             for br in text_elem_copy.find_all('br'):
                 br.replace_with('\n')
             
