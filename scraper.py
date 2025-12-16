@@ -211,9 +211,12 @@ class ForumScraper:
                 line = line.rstrip()
                 # Collapse multiple spaces within the line
                 line = re.sub(r'[ \t]+', ' ', line)
-                cleaned_lines.append(line)
+                # Only add non-empty lines
+                if line:
+                    cleaned_lines.append(line)
             
-            # Join lines back with newlines
+            # Join non-empty lines with single newlines
+            # This prevents multiple consecutive blank lines
             post_text = '\n'.join(cleaned_lines)
             
             # Remove leading/trailing whitespace
