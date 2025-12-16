@@ -216,23 +216,34 @@ class ForumScraper:
                     # If href and inner_text are the same, or no href, just keep the text
                     a_tag.replace_with(inner_text)
             
-            # Process blockquote elements to include their text in the post
-            # Instead of removing them, we'll extract their text and mark it as quoted
-            for blockquote in text_elem_copy.find_all('blockquote', class_='mycode_quote'):
-                # Check if this blockquote contains a link to another post (pid=)
-                # If it does, we should skip it since we're already capturing this info via replies_to
-                contains_post_link = False
-                for a_tag in blockquote.find_all('a', href=True):
-                    href = a_tag.get('href', '')
-                    if 'pid=' in href:
-                        contains_post_link = True
-                        break
+            # Process blockquote elements
+            # We want to remove blockquotes that are replies to other posts (contain post IDs)
+            # and keep only blockquotes that are regular quotes (not replies)
+            # Process in reverse order to handle nested blockquotes correctly
+            all_blockquotes = list(text_elem_copy.find_all('blockquote', class_='mycode_quote'))
+            for blockquote in reversed(all_blockquotes):
+                # Check if the blockquote still exists (may have been removed by parent decomposition)
+                if not blockquote or not blockquote.parent:
+                    continue
+                    
+                # Check if this blockquote has a <cite> element containing a link with pid=
+                # This indicates it's a reply to another post
+                is_reply_quote = False
+                cite_elem = blockquote.find('cite')
+                if cite_elem:
+                    # Look for any <a> tag within the cite that has 'pid=' in href
+                    for a_tag in cite_elem.find_all('a', href=True):
+                        href = a_tag.get('href', '')
+                        if 'pid=' in href:
+                            is_reply_quote = True
+                            break
                 
-                # If the blockquote contains a post link, skip it
-                if contains_post_link:
+                # If it's a reply quote, remove it entirely
+                if is_reply_quote:
                     blockquote.decompose()
                     continue
                 
+                # Otherwise, it's a regular quote that we want to include
                 # Get the text from the blockquote
                 quote_text = blockquote.get_text(separator='\n', strip=False)
                 # Clean up the text: remove leading/trailing whitespace
